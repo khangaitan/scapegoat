@@ -1,16 +1,20 @@
 import { drawPlayerHand, drawDisaster, drawBunker, getSpecialCardAction, getSpecialCardMeta, drawNew, drawPlayerHandFromDecks, drawNewFromDecks, createRoomDecks, type RoomDecks } from "./gameData.js";
 
-export type CardCategory =
-  | "profession"
-  | "health"
-  | "ageGender"
-  | "hobby"
-  | "personality"
-  | "specialCard1"
-  | "specialCard2"
-  | "phobia"
-  | "extraInfo"
-  | "bagItem";
+import type {
+  BackendCardCategory,
+  BackendGamePhase,
+  BackendRevealedCard,
+  BackendPlayer,
+  BackendGameRoom,
+  BackendEndTurnResult,
+  BackendPhaseAdvanceResult,
+  BackendRevealResult,
+  BackendVoteResult,
+  BackendActivateOpts,
+  BackendActivateFlash,
+  BackendActivateResult,
+  BackendHandCategory,
+} from "./game/types.js";
 
 export const CATEGORY_LABELS: Record<CardCategory, string> = {
   profession: "Мэргэжил",
@@ -24,8 +28,6 @@ export const CATEGORY_LABELS: Record<CardCategory, string> = {
   extraInfo: "Нэмэлт мэдээлэл",
   bagItem: "Гар цүнх",
 };
-
-export type GamePhase = "reveal" | "discussion" | "reverseVote" | "defense" | "finalVote";
 
 export const PHASE_LABELS: Record<GamePhase, string> = {
   reveal: "Карт дэлгэх",
@@ -45,59 +47,19 @@ const PHASE_DEFAULT_DURATIONS: Record<GamePhase, number> = {
 
 export const TURN_BASED_PHASES: GamePhase[] = ["reveal", "reverseVote", "defense"];
 
-export interface RevealedCard {
-  category: CardCategory;
-  label: string;
-  value: string;
-  action?: string;
-  cardId?: number;
-  activated?: boolean;
-  requested?: boolean;
-  forced?: boolean;
-  revealedAt: number;
-}
-
-export interface Player {
-  id: string;
-  name: string;
-  playerKey: string;
-  disconnected: boolean;
-  disconnectedAt: number | null;
-  hand: ReturnType<typeof drawPlayerHand>;
-  revealedCards: RevealedCard[];
-  isEliminated: boolean;
-  isHost: boolean;
-  roundRevealCount: number;
-  roundDebt: number;
-  voteImmunity: boolean;
-  defenseTimeReduced: boolean;
-  hasIntroduced: boolean;
-}
-
-export interface GameRoom {
-  id: string;
-  players: Map<string, Player>;
-  status: "lobby" | "playing" | "ended";
-  disaster: ReturnType<typeof drawDisaster> | null;
-  bunker: ReturnType<typeof drawBunker> | null;
-  createdAt: number;
-  round: number;
-  cardRevealLimit: number;
-  originalPlayerCount: number;
-  turnOrder: string[];
-  currentTurnIndex: number;
-  turnEndsAt: number | null;
-  turnDurationSec: number;
-  pausedRemainingMs: number | null;
-  phase: GamePhase;
-  phaseDurations: Record<GamePhase, number>;
-  votes: Map<string, string>;
-  voteCounts: Record<string, number>;
-  defendingPlayerIds: string[];
-  lastEliminatedPlayerId: string | null;
-  terminated?: boolean;
-  decks: RoomDecks;
-}
+export type CardCategory = BackendCardCategory;
+export type GamePhase = BackendGamePhase;
+export type RevealedCard = BackendRevealedCard;
+export type Player = BackendPlayer;
+export type GameRoom = BackendGameRoom;
+export type EndTurnResult = BackendEndTurnResult;
+export type PhaseAdvanceResult = BackendPhaseAdvanceResult;
+export type RevealResult = BackendRevealResult;
+export type VoteResult = BackendVoteResult;
+export type ActivateOpts = BackendActivateOpts;
+export type ActivateFlash = BackendActivateFlash;
+export type ActivateResult = BackendActivateResult;
+export type HandCategory = BackendHandCategory;
 
 export const rooms = new Map<string, GameRoom>();
 
@@ -302,13 +264,6 @@ export function nextRound(room: GameRoom): number {
   return room.round;
 }
 
-export interface PhaseAdvanceResult {
-  phase: GamePhase;
-  roundAdvanced: boolean;
-  eliminatedPlayerId: string | null;
-  gameEnded: boolean;
-}
-
 export function advancePhase(room: GameRoom): PhaseAdvanceResult {
   const result: PhaseAdvanceResult = {
     phase: room.phase,
@@ -409,11 +364,6 @@ export function getCardValue(player: Player, category: CardCategory): string {
   }
 }
 
-export interface RevealResult {
-  card?: RevealedCard;
-  error?: string;
-}
-
 export function revealCard(room: GameRoom, playerId: string, category: CardCategory): RevealResult {
   const player = room.players.get(playerId);
   if (!player) return { error: "Тоглогч олдсонгүй" };
@@ -474,11 +424,6 @@ export function revealCard(room: GameRoom, playerId: string, category: CardCateg
   return { card };
 }
 
-export interface VoteResult {
-  error?: string;
-  voteCounts?: Record<string, number>;
-}
-
 export function castVote(room: GameRoom, voterId: string, targetId: string): VoteResult {
   const voter = room.players.get(voterId);
   if (!voter) return { error: "Тоглогч олдсонгүй" };
@@ -505,11 +450,6 @@ export function castVote(room: GameRoom, voterId: string, targetId: string): Vot
   room.votes.set(voterId, targetId);
   room.voteCounts = tallyVotes(room);
   return { voteCounts: room.voteCounts };
-}
-
-export interface EndTurnResult {
-  nextPlayerId: string | null;
-  phaseEnded: boolean;
 }
 
 export function endTurn(room: GameRoom): EndTurnResult {
@@ -553,8 +493,6 @@ export function eliminatePlayer(room: GameRoom, playerId: string): { ok: boolean
   }
   return { ok: true, gameOver, turnAdvanced };
 }
-
-type HandCategory = "profession" | "health" | "ageGender" | "hobby" | "personality" | "phobia" | "bagItem";
 
 const HAND_TO_CARD: Record<HandCategory, CardCategory> = {
   profession: "profession",
@@ -604,25 +542,6 @@ function swapHand(a: Player, b: Player, category: HandCategory): ActivateFlash[]
   return flashes;
 }
 
-export interface ActivateOpts {
-  ownerId: string;
-  slot: "specialCard1" | "specialCard2";
-  targetId?: string;
-}
-
-export interface ActivateFlash {
-  playerId: string;
-  card: RevealedCard;
-}
-
-export interface ActivateResult {
-  error?: string;
-  message?: string;
-  flashes?: ActivateFlash[];
-  eliminatedPlayerId?: string;
-  revivedPlayerId?: string;
-  gameOver?: boolean;
-}
 
 export function activateSpecialCard(room: GameRoom, opts: ActivateOpts): ActivateResult {
   const owner = room.players.get(opts.ownerId);
@@ -772,66 +691,3 @@ export function autoRevealProfessionOnIntro(room: GameRoom, playerId: string): R
   return card;
 }
 
-export function serializeRoom(room: GameRoom, requestingPlayerId?: string) {
-  const currentTurnPlayerId = getCurrentPlayerId(room);
-  const myVote = requestingPlayerId ? room.votes.get(requestingPlayerId) ?? null : null;
-  return {
-    id: room.id,
-    status: room.status,
-    disaster: room.disaster,
-    bunker: room.bunker,
-    round: room.round,
-    cardRevealLimit: room.cardRevealLimit,
-    originalPlayerCount: room.originalPlayerCount,
-    turnOrder: room.turnOrder,
-    currentTurnIndex: room.currentTurnIndex,
-    currentTurnPlayerId,
-    turnEndsAt: room.turnEndsAt,
-    turnDurationSec: room.turnDurationSec,
-    pausedRemainingMs: room.pausedRemainingMs,
-    isPaused: room.pausedRemainingMs !== null,
-    phase: room.phase,
-    phaseLabel: PHASE_LABELS[room.phase],
-    phaseDurations: room.phaseDurations,
-    voteCounts: room.voteCounts,
-    defendingPlayerIds: room.defendingPlayerIds,
-    lastEliminatedPlayerId: room.lastEliminatedPlayerId,
-    myVote,
-    players: Array.from(room.players.values()).map(p => {
-      const effectiveLimit = Math.max(0, room.cardRevealLimit - p.roundDebt);
-      return {
-        id: p.id,
-        name: p.name,
-        isEliminated: p.isEliminated,
-        isHost: p.isHost,
-        revealedCards: p.revealedCards,
-        hand: requestingPlayerId === p.id ? serializeHand(p) : null,
-        revealedCount: p.revealedCards.length,
-        roundRevealCount: p.roundRevealCount,
-        roundDebt: p.roundDebt,
-        effectiveLimit,
-        voteImmunity: p.voteImmunity,
-        defenseTimeReduced: p.defenseTimeReduced,
-        disconnected: p.disconnected,
-      };
-    }),
-  };
-}
-
-function serializeHand(player: Player) {
-  const { hand } = player;
-  return {
-    profession: hand.profession.name,
-    health: hand.health.name,
-    ageGender: `${hand.ageGender.age} нас, ${hand.ageGender.gender}`,
-    hobby: hand.hobby.name,
-    personality: hand.personality.name,
-    specialCard1: hand.specialCard1.name,
-    specialCard1Action: getSpecialCardAction(hand.specialCard1.id),
-    specialCard2: hand.specialCard2.name,
-    specialCard2Action: getSpecialCardAction(hand.specialCard2.id),
-    phobia: hand.phobia.name,
-    extraInfo: hand.extraInfo.name,
-    bagItem: hand.bagItem.name,
-  };
-}

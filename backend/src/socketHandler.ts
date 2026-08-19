@@ -22,13 +22,12 @@ import {
   pauseTimer,
   resumeTimer,
   stopTimer,
-  serializeRoom,
   autoRevealProfessionOnIntro,
   TURN_BASED_PHASES,
-  type CardCategory,
-  type GameRoom,
   rooms,
 } from "./gameState.js";
+import type { BackendGameRoom as GameRoom, BackendCardCategory as CardCategory } from "./game/types.js";
+import { serializeRoom } from "./game/serializers.js";
 import { consumeHostCode } from "./lib/hostCodes.js";
 
 function generateRoomId(): string {
