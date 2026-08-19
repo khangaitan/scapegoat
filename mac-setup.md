@@ -13,24 +13,21 @@ Node хувилбар зөрөх, `better-sqlite3` native binary эвдрэх з
 
 ## 2. Repo-г Mac руу авчрах
 
-Одоогоор энэ repo зөвхөн энэ machine дээр local байгаа тул (git remote тохируулаагүй),
-дараах хоёрын аль нэгээр Mac руу шилжүүлнэ:
+Repo нь **https://github.com/khangaitan/scapegoat** дээр байгаа (`main` branch, public).
+Mac дээр терминал нээгээд:
 
-**A) GitHub-руу түлхэж, тэндээс clone хийх (санал болгож буй арга):**
 ```bash
-# энэ machine дээр — өөрийн GitHub дээр хоосон repo үүсгээд:
-git remote add origin git@github.com:<хэрэглэгч>/songolt.git
-git push -u origin master
-
-# Mac дээр:
-git clone git@github.com:<хэрэглэгч>/songolt.git
+git clone https://github.com/khangaitan/scapegoat.git songolt
 cd songolt
 ```
 
-**B) Шууд хуулах (AirDrop / USB / rsync):**
-Repo-г бүхэлд нь хуулж болно, гэхдээ `node_modules/` болон `dist/` фолдеруудыг **бүү хуул** —
-эдгээр нь тухайн machine-д зориулж build хийгддэг тул Linux/х86 дээрх хуулбар Mac дээр
-ажиллахгүй (яг Docker-ийг ашиглах шалтгаан нь энэ асуудлыг тойрч гарах явдал).
+(SSH хандалт тохируулсан бол `git clone git@github.com:khangaitan/scapegoat.git songolt`
+ашиглаж болно — ялгаагүй.)
+
+**Альтернатив:** repo-г шууд хуулах (AirDrop / USB / rsync) хувилбар бас байна, гэхдээ
+`node_modules/` болон `dist/` фолдеруудыг **бүү хуул** — эдгээр нь тухайн machine-д зориулж
+build хийгддэг тул Linux/х86 дээрх хуулбар Mac дээр ажиллахгүй (яг Docker-ийг ашиглах
+шалтгаан нь энэ асуудлыг тойрч гарах явдал).
 
 ## 3. (Сонголтоор) орчны хувьсагч тохируулах
 
