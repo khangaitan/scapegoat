@@ -18,6 +18,8 @@ npm run preview      # serve the production build locally
 
 The real backend lives in `backend/`. `npm run dev:all` builds and starts it alongside Vite. The backend requires no env vars for basic local dev (SQLite DB is created automatically at `backend/data/songolt.db`).
 
+Alternative: `docker compose up` builds and runs both services in containers (`Dockerfile` for the frontend dev server, `backend/Dockerfile` for the backend) — avoids host Node-version and `better-sqlite3`-native-binary mismatches. See `mac-setup.md`.
+
 No test runner is configured. There is no linter or formatter defined in package.json.
 
 ## Environment
@@ -26,11 +28,12 @@ No test runner is configured. There is no linter or formatter defined in package
 - `VITE_API_URL` — points at the backend (e.g. `https://my-backend.railway.app`). If unset, the socket connects to the same origin. The socket path is always `/api/socket.io`. For local dev, leave unset — `vite.config.ts` proxies all `/api` traffic to `http://localhost:3001`.
 
 **Backend env vars** (set in `backend/.env` or as process env):
-- `ADMIN_TOKEN` — required to use admin endpoints (generate/list host codes). Without it the admin routes return 500.
-- `OPENAI_API_KEY` — required only for the `/api/story` end-of-game story feature (uses `gpt-4o`).
+- `ADMIN_TOKEN` — required to use admin endpoints (generate/list host codes). Without it the admin routes return `403`; a wrong `x-admin-token` header returns `401`.
 - `SQLITE_PATH` — path to the SQLite DB file (default: `./data/songolt.db` relative to the backend dir).
 - `PORT` — listening port (default: 3001).
 - `CORS_ORIGIN` — restrict CORS to a specific origin in production.
+
+The end-of-game story feature (`/api/story`, `backend/src/routes/story.ts`) is **not** env-configurable and does not use OpenAI — it calls a local Ollama server hardcoded to `http://localhost:11434` (model `phi4-mini`). No API key enables it; it only works if Ollama is running and reachable on that host.
 
 The admin panel is available at `?admin=1` or any path ending in `/admin`. It authenticates with the `ADMIN_TOKEN` value via `x-admin-token` header and hits REST endpoints at `/api/admin/...`.
 
@@ -77,9 +80,9 @@ URL parameters handled by `App.tsx`:
 
 ### Game data flow
 
-The server is authoritative. Clients receive a full `GameRoom` object on every `room_update` event; there is no local mutation of game state. `broadcastRoom` in `socketHandler.ts` calls `serializeRoom(room, pid)` per socket — only the requesting player's own `hand` is populated, everyone else's is `null`. Flash card notifications (`card_revealed`) are managed as a separate `flashCards` array in `useGame.ts` with auto-expiry timers (4 s).
+The server is authoritative. Clients receive a full `GameRoom` object on every `room_update` event; there is no local mutation of game state. `broadcastRoom` in `socketHandler.ts` calls `serializeRoom(room, pid)` (defined in `backend/src/game/serializers.ts`) per socket — only the requesting player's own `hand` is populated, everyone else's is `null`. Flash card notifications (`card_revealed`) are managed as a separate `flashCards` array in `useGame.ts` with auto-expiry timers (4 s).
 
-**Frontend vs backend `GameRoom` shapes differ.** The backend stores `players` as `Map<string, Player>` and computes `isPaused` and `myVote` during `serializeRoom`. The frontend receives `GameRoom` per `src/lib/types.ts` where `players` is `Player[]`, `isPaused` is a boolean field, and `myVote` is already resolved. When modifying game state logic, keep both type definitions in sync.
+**Frontend vs backend `GameRoom` shapes still differ, but the wire shape is now a single shared source of truth.** The backend's internal representation (`BackendGameRoom`/`BackendPlayer` in `backend/src/game/types.ts`) stores `players` as `Map<string, Player>`; `serializeRoom` converts it to the shape defined once in `shared/types.ts` (`players: Player[]`, `isPaused` a plain boolean, `myVote` already resolved). `src/lib/types.ts` re-exports those same types from `shared/types.ts` rather than redeclaring them — when the wire shape needs to change, edit `shared/types.ts` and both sides pick it up automatically.
 
 ### Socket events
 
@@ -174,4 +177,4 @@ Tailwind CSS v4 (via `@tailwindcss/vite` plugin). The app always runs in dark mo
 
 ### Deployment
 
-Deployed on Netlify. `netlify.toml` sets build command to `npm install && npm run build`, publish dir to `dist`, and adds a catch-all redirect to `index.html` for SPA routing.
+Split deployment: static frontend on Netlify (`netlify.toml` sets build command to `npm install && npm run build`, publish dir to `dist`, and adds a catch-all redirect to `index.html` for SPA routing), backend on a separate long-running host (Railway/Render/Fly.io, either via buildpacks or `backend/Dockerfile`). Full instructions in `deploy.md`; for local dev via Docker (including on a fresh Mac) see `mac-setup.md`.
